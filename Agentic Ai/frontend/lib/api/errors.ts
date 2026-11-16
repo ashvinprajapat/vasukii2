@@ -65,7 +65,7 @@ export function isUnauthorized(error: unknown) {
 export function userMessage(error: unknown, fallback = 'Something went wrong. Please try again.') {
   if (error instanceof IntegrationPendingError) {
     if (error.reason === 'base-url' && error.endpoint.startsWith('auth.'))
-      return 'Sign-in is unavailable: the Vasukii backend URL (NEXT_PUBLIC_API_BASE_URL) isn’t configured.'
+      return 'Sign-in is unavailable: the Vasukii backend URL (VITE_API_BASE_URL) isn’t configured.'
     return 'This feature isn’t connected to the campus backend yet.'
   }
   if (error instanceof NetworkError)
