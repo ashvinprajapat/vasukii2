@@ -770,8 +770,16 @@ def _public_user(row: dict) -> dict:
     }
 
 
+PROFILE_UNAVAILABLE = "Your account profile could not be loaded. Please try again shortly."
+
+
 def _find_profile(email: str) -> Optional[dict]:
-    rows = supabase.table("users").select("*").eq("email", email).limit(1).execute().data
+    # Unhandled exceptions bypass CORSMiddleware, which the browser would report as a network failure.
+    try:
+        rows = supabase.table("users").select("*").eq("email", email).limit(1).execute().data
+    except Exception as e:
+        print(f"Profile lookup error: {str(e)[:200]}")
+        raise HTTPException(status_code=503, detail=PROFILE_UNAVAILABLE)
     return rows[0] if rows else None
 
 
@@ -789,7 +797,11 @@ def _ensure_profile(auth_user) -> dict:
         department = str(meta.get("department") or "").strip()[:120]
         if department:
             payload["department"] = department
-        profile = supabase.table("users").insert(payload).execute().data[0]
+        try:
+            profile = supabase.table("users").insert(payload).execute().data[0]
+        except Exception as e:
+            print(f"Profile creation error: {str(e)[:200]}")
+            raise HTTPException(status_code=503, detail=PROFILE_UNAVAILABLE)
     if profile["role"] not in SELF_SERVICE_ROLES:
         raise HTTPException(status_code=403, detail=ADMIN_REJECTION)
     return profile

@@ -71,11 +71,7 @@ export function SubmitFeedback({ error, success }: { error: unknown; success?: R
         )}
       >
         <Icon className="mt-0.5 size-4 shrink-0" />
-        <p>
-          {pending
-            ? 'Submissions aren’t connected to the campus backend yet, so nothing was sent.'
-            : userMessage(error)}
-        </p>
+        <p>{userMessage(error)}</p>
       </div>
     )
   }

@@ -73,7 +73,8 @@ export function userMessage(error: unknown, fallback = 'Something went wrong. Pl
   if (error instanceof ApiError) {
     if (error.status === 401)
       return error.endpoint === 'auth.signIn' ? (error.detail ?? 'Invalid email or password.') : 'Your session has ended. Please sign in again.'
-    if (error.status === 403) return 'You don’t have permission to do that.'
+    if (error.status === 403)
+      return error.endpoint.startsWith('auth.') && error.detail ? error.detail : 'You don’t have permission to do that.'
     if (error.status >= 400 && error.status < 500 && error.detail) return error.detail
     return 'Vasukii is having trouble right now. Please try again shortly.'
   }
