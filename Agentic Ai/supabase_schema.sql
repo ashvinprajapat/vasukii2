@@ -9,12 +9,15 @@ DROP TABLE IF EXISTS resources CASCADE;
 DROP TABLE IF EXISTS campus_policies CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
--- 1. USERS (RBAC: organizer, faculty, admin)
+-- 1. USERS (RBAC: organizer = Student, faculty, admin)
+-- Student/Faculty rows are created by the backend on first sign-in after Supabase Auth signup
+-- (linked by email). Admin rows are managed separately and cannot be created via signup.
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
-    role TEXT CHECK (role IN ('organizer', 'admin', 'faculty')) NOT NULL
+    role TEXT CHECK (role IN ('organizer', 'admin', 'faculty')) NOT NULL,
+    department TEXT
 );
 
 -- 2. RESOURCES (34 Real CSV Venues + 2nd Amphitheatre + 6 MDC Rooms + 6 Parking Bays)
@@ -85,8 +88,6 @@ CREATE TABLE audit_logs (
 -- ============================================================================
 
 INSERT INTO users (name, email, role) VALUES
-('Student Event Coordinator', 'organizer@jklu.edu.in', 'organizer'),
-('Dr. Amar Nath Patra (Faculty)', 'faculty@jklu.edu.in', 'faculty'),
 ('JKLU Estate & Facility Admin', 'admin@jklu.edu.in', 'admin');
 
 INSERT INTO resources (id, name, category, building, capacity, features) VALUES

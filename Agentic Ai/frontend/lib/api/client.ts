@@ -2,7 +2,27 @@ import type { z } from 'zod'
 import { API_BASE_URL, REQUEST_TIMEOUT_MS } from './config'
 import { getContract, type EndpointKey } from './endpoints'
 import { ApiError, IntegrationPendingError, NetworkError, ResponseValidationError } from './errors'
-import { AUTH_TRANSPORT, clearSession, getAccessToken } from './session'
+import { signInResultSchema } from './schemas'
+import { AUTH_TRANSPORT, clearSession, getAccessToken, getRefreshToken, setSession } from './session'
+
+let refreshing: Promise<boolean> | null = null
+
+/** Renews the Supabase access token once; concurrent 401s share the same refresh request. */
+function refreshAccessToken(): Promise<boolean> {
+  const refreshToken = getRefreshToken()
+  if (!refreshToken) return Promise.resolve(false)
+  refreshing ??= apiRequest('auth.refresh', signInResultSchema, { input: { refresh_token: refreshToken } })
+    .then((result) => {
+      if (!result.accessToken) return false
+      setSession({ accessToken: result.accessToken, refreshToken: result.refreshToken ?? refreshToken })
+      return true
+    })
+    .catch(() => false)
+    .finally(() => {
+      refreshing = null
+    })
+  return refreshing
+}
 
 type RequestOptions = {
   params?: Record<string, string>
@@ -74,6 +94,9 @@ export async function apiRequest<S extends z.ZodTypeAny>(
   }
 
   if (!res.ok) {
+    if (res.status === 401 && token && !key.startsWith('auth.') && (await refreshAccessToken())) {
+      return apiRequest(key, schema, { params, input, signal, timeoutMs })
+    }
     if (res.status === 401) clearSession()
     throw new ApiError(key, res.status, await readDetail(res))
   }
