@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { UniversityLogo, VasukiiWordmark } from '@/components/vasukii/brand'
 import { SignInForm } from '@/components/vasukii/sign-in-form'
 
@@ -15,6 +16,12 @@ export default function SignInPage() {
           <h1 className="font-serif text-3xl tracking-tight text-foreground">Welcome back</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">Sign in with your JKLU university account.</p>
           <SignInForm />
+          <p className="mt-6 text-center text-[13px] text-muted-foreground">
+            New to Vasukii?{' '}
+            <Link href="/sign-up" className="font-medium text-foreground underline-offset-4 hover:underline">
+              Create an account
+            </Link>
+          </p>
         </div>
         <div className="mt-6 flex justify-center">
           <UniversityLogo />

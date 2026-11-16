@@ -7,7 +7,7 @@ import pandas as pd
 import pdfplumber
 from datetime import date
 from typing import List, Optional
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -721,6 +721,217 @@ def approve_or_reject_booking(req: AdminDecision):
         "remarks": req.admin_remarks
     })
     return {"status": "updated", "data": res.data}
+
+# ============================================================================
+# 3b. STUDENT / FACULTY AUTHENTICATION
+#     Supabase Auth issues sessions; the existing `users` table holds the profile
+#     (linked by email). Admin accounts are rejected here so admin access stays
+#     separate from the Student/Faculty app.
+# ============================================================================
+UNIVERSITY_EMAIL_DOMAIN = os.getenv("UNIVERSITY_EMAIL_DOMAIN", "jklu.edu.in").strip().lower()
+SELF_SERVICE_ROLES = {"organizer", "faculty"}
+ADMIN_REJECTION = "Administrator accounts sign in through the Estate Admin console."
+SESSION_EXPIRED = "Your session has expired. Please sign in again."
+
+
+def _auth_client() -> Client:
+    """A fresh client per auth call, so a user session never replaces the backend key on the shared client."""
+    return create_client(os.getenv("SUPABASE_URL", "").strip(), os.getenv("SUPABASE_KEY", "").strip())
+
+
+def _normalize_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+
+def _auth_error(e: Exception) -> HTTPException:
+    msg = str(getattr(e, "message", "") or e)
+    low = msg.lower()
+    if "invalid login credentials" in low:
+        return HTTPException(status_code=401, detail="Incorrect email or password.")
+    if "already registered" in low or "already exists" in low:
+        return HTTPException(status_code=409, detail="An account with this email already exists. Sign in instead.")
+    if "email not confirmed" in low:
+        return HTTPException(status_code=403, detail="Confirm your email address before signing in.")
+    if "rate limit" in low:
+        return HTTPException(status_code=429, detail="Too many attempts. Please wait a moment and try again.")
+    if "password" in low:
+        return HTTPException(status_code=400, detail=msg)
+    print(f"Auth provider error: {msg[:200]}")
+    return HTTPException(status_code=502, detail="The authentication service is unavailable. Please try again.")
+
+
+def _public_user(row: dict) -> dict:
+    return {
+        "id": str(row["id"]),
+        "name": row["name"],
+        "email": row["email"],
+        "role": row["role"],
+        "department": row.get("department"),
+    }
+
+
+def _find_profile(email: str) -> Optional[dict]:
+    rows = supabase.table("users").select("*").eq("email", email).limit(1).execute().data
+    return rows[0] if rows else None
+
+
+def _ensure_profile(auth_user) -> dict:
+    """Returns the `users` row for a verified Supabase Auth user, creating it on first sign-in."""
+    email = _normalize_email(getattr(auth_user, "email", "") or "")
+    if not email:
+        raise HTTPException(status_code=401, detail=SESSION_EXPIRED)
+    profile = _find_profile(email)
+    if profile is None:
+        meta = getattr(auth_user, "user_metadata", None) or {}
+        role = meta.get("role") if meta.get("role") in SELF_SERVICE_ROLES else "organizer"
+        name = (str(meta.get("name") or "").strip() or email.split("@")[0])[:120]
+        payload = {"name": name, "email": email, "role": role}
+        department = str(meta.get("department") or "").strip()[:120]
+        if department:
+            payload["department"] = department
+        profile = supabase.table("users").insert(payload).execute().data[0]
+    if profile["role"] not in SELF_SERVICE_ROLES:
+        raise HTTPException(status_code=403, detail=ADMIN_REJECTION)
+    return profile
+
+
+def _session_payload(session, profile: Optional[dict]) -> dict:
+    return {
+        "access_token": session.access_token if session else None,
+        "refresh_token": session.refresh_token if session else None,
+        "expires_in": session.expires_in if session else None,
+        "user": _public_user(profile) if profile else None,
+        "requires_email_confirmation": session is None,
+    }
+
+
+def _bearer_token(authorization: Optional[str]) -> str:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Not signed in.")
+    return authorization[7:].strip()
+
+
+def get_current_profile(authorization: Optional[str] = Header(default=None)) -> dict:
+    token = _bearer_token(authorization)
+    try:
+        res = supabase.auth.get_user(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail=SESSION_EXPIRED)
+    if not res or not res.user:
+        raise HTTPException(status_code=401, detail=SESSION_EXPIRED)
+    return _ensure_profile(res.user)
+
+
+def _validated_profile_fields(name: str, department: Optional[str]) -> tuple:
+    clean_name = (name or "").strip()
+    clean_department = (department or "").strip()
+    if not clean_name or len(clean_name) > 120:
+        raise HTTPException(status_code=400, detail="Enter your full name (up to 120 characters).")
+    if len(clean_department) > 120:
+        raise HTTPException(status_code=400, detail="Department must be 120 characters or fewer.")
+    return clean_name, clean_department or None
+
+
+class SignUpRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    role: str
+    department: Optional[str] = None
+    redirect_to: Optional[str] = None
+
+
+class SignInRequest(BaseModel):
+    email: str
+    password: str
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class ProfileUpdateRequest(BaseModel):
+    name: str
+    department: Optional[str] = None
+
+
+@app.post("/api/auth/signup")
+def sign_up(req: SignUpRequest):
+    email = _normalize_email(req.email)
+    name, department = _validated_profile_fields(req.name, req.department)
+    if req.role not in SELF_SERVICE_ROLES:
+        raise HTTPException(status_code=400, detail="Choose either Student or Faculty.")
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+", email) or not email.endswith("@" + UNIVERSITY_EMAIL_DOMAIN):
+        raise HTTPException(status_code=400, detail=f"Use your @{UNIVERSITY_EMAIL_DOMAIN} university email.")
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    existing = _find_profile(email)
+    if existing and existing["role"] not in SELF_SERVICE_ROLES:
+        raise HTTPException(status_code=403, detail=ADMIN_REJECTION)
+
+    options = {"data": {"name": name, "role": req.role, "department": department}}
+    if req.redirect_to and req.redirect_to.startswith(("https://", "http://localhost")):
+        options["email_redirect_to"] = req.redirect_to
+    try:
+        res = _auth_client().auth.sign_up({"email": email, "password": req.password, "options": options})
+    except Exception as e:
+        raise _auth_error(e)
+
+    if res.session is None:
+        return _session_payload(None, None)
+    return _session_payload(res.session, _ensure_profile(res.user))
+
+
+@app.post("/api/auth/login")
+def sign_in(req: SignInRequest):
+    client = _auth_client()
+    try:
+        res = client.auth.sign_in_with_password({"email": _normalize_email(req.email), "password": req.password})
+    except Exception as e:
+        raise _auth_error(e)
+    try:
+        profile = _ensure_profile(res.user)
+    except HTTPException:
+        try:
+            client.auth.sign_out()
+        except Exception:
+            pass
+        raise
+    return _session_payload(res.session, profile)
+
+
+@app.post("/api/auth/refresh")
+def refresh_session(req: RefreshRequest):
+    try:
+        res = _auth_client().auth.refresh_session(req.refresh_token)
+    except Exception:
+        raise HTTPException(status_code=401, detail=SESSION_EXPIRED)
+    if not res or not res.session:
+        raise HTTPException(status_code=401, detail=SESSION_EXPIRED)
+    return _session_payload(res.session, _ensure_profile(res.user))
+
+
+@app.post("/api/auth/logout")
+def sign_out(authorization: Optional[str] = Header(default=None)):
+    token = _bearer_token(authorization)
+    try:
+        _auth_client().auth.admin.sign_out(token)
+    except Exception as e:
+        print(f"Sign-out non-fatal warning: {str(e)[:160]}")
+    return {"status": "signed_out"}
+
+
+@app.get("/api/auth/me")
+def read_current_user(profile: dict = Depends(get_current_profile)):
+    return _public_user(profile)
+
+
+@app.patch("/api/auth/me")
+def update_current_user(req: ProfileUpdateRequest, profile: dict = Depends(get_current_profile)):
+    name, department = _validated_profile_fields(req.name, req.department)
+    res = supabase.table("users").update({"name": name, "department": department}).eq("id", profile["id"]).execute()
+    updated = res.data[0] if res.data else {**profile, "name": name, "department": department}
+    return _public_user(updated)
 
 # ============================================================================
 # 4. UNIFIED MULTI-FORMAT TIMETABLE PARSER (PDF / EXCEL / CSV)

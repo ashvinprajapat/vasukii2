@@ -21,7 +21,10 @@ export type User = z.infer<typeof userSchema>
 
 export const signInResultSchema = z.object({
   accessToken: z.string().nullish(),
+  refreshToken: z.string().nullish(),
   user: userSchema.nullish(),
+  /** True when Supabase requires the email to be confirmed before a session is issued. */
+  requiresEmailConfirmation: z.boolean().default(false),
 })
 export type SignInResult = z.infer<typeof signInResultSchema>
 

@@ -1,12 +1,20 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useSessionStatus } from '@/lib/api/hooks'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const router = useRouter()
+  const session = useSessionStatus()
+
+  useEffect(() => {
+    if (session === 'signed-out') router.replace('/sign-in')
+  }, [session, router])
 
   useEffect(() => {
     if (!mobileOpen) return
