@@ -16,15 +16,39 @@ import {
   venueSchema,
   type VenueKind,
 } from './schemas'
-import { setAccessToken } from './session'
+import { clearSession, setSession } from './session'
+
+export type SignUpInput = {
+  name: string
+  email: string
+  password: string
+  role: 'student' | 'faculty'
+  department?: string
+  redirect_to?: string
+}
+
+function storeSession(result: { accessToken?: string | null; refreshToken?: string | null }) {
+  if (result.accessToken) setSession({ accessToken: result.accessToken, refreshToken: result.refreshToken })
+}
 
 export const authService = {
   async signIn(input: { email: string; password: string }) {
     const result = await apiRequest('auth.signIn', signInResultSchema, { input })
-    if (result.accessToken) setAccessToken(result.accessToken)
+    storeSession(result)
     return result
   },
-  signOut: () => apiRequest('auth.signOut', emptyResponseSchema),
+  async signUp(input: SignUpInput) {
+    const result = await apiRequest('auth.signUp', signInResultSchema, { input })
+    storeSession(result)
+    return result
+  },
+  async signOut() {
+    try {
+      await apiRequest('auth.signOut', emptyResponseSchema)
+    } finally {
+      clearSession()
+    }
+  },
   me: () => apiRequest('auth.me', userSchema),
   updateProfile: (input: { name: string; department?: string }) => apiRequest('profile.update', userSchema, { input }),
 }

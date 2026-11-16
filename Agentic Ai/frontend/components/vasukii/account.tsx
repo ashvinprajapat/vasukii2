@@ -24,7 +24,7 @@ export function ProfileDetails() {
       query={query}
       isEmpty={() => false}
       loading={<SkeletonRows rows={2} />}
-      pending="Your profile will appear here once sign-in is connected to the campus backend."
+      pending="Your profile couldn’t be loaded from the campus backend."
       empty={{ icon: UserRound, title: 'Not signed in' }}
     >
       {(user) => (

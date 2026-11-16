@@ -32,31 +32,70 @@ type IntegrationPoint = {
 const AUTHORIZED =
   'Must be scoped to the authenticated user on the backend (RBAC), not filtered by the frontend.'
 
+type BackendUser = { id: string; name: string; email: string; role: string; department?: string | null }
+
+/** The `users` table stores Students as `organizer`. Admins are rejected by the backend's auth routes. */
+const toFrontendRole = (role: string) => (role === 'organizer' ? 'student' : role)
+const toBackendRole = (role: unknown) => (role === 'student' ? 'organizer' : role)
+
+const mapUser = (raw: unknown) => {
+  const u = raw as BackendUser | null
+  return u && typeof u === 'object' ? { ...u, role: toFrontendRole(u.role) } : u
+}
+
+const mapSession = (raw: unknown) => {
+  const r = (raw ?? {}) as {
+    access_token?: string | null
+    refresh_token?: string | null
+    user?: unknown
+    requires_email_confirmation?: boolean
+  }
+  return {
+    accessToken: r.access_token ?? null,
+    refreshToken: r.refresh_token ?? null,
+    user: r.user ? mapUser(r.user) : null,
+    requiresEmailConfirmation: Boolean(r.requires_email_confirmation),
+  }
+}
+
 export const INTEGRATION_POINTS = {
   'auth.signIn': {
-    purpose: 'Exchange a university email + password for a session (Student or Faculty).',
-    needs: [
-      'Method and path of the login route',
-      'Request body field names (e.g. email/password vs. form-encoded username/password for OAuth2PasswordRequestForm)',
-      'Session transport: HttpOnly cookie set by FastAPI, or a bearer token returned in the body (and its field name)',
-      'How the role is returned, and the response for admin accounts (the admin UI is separate)',
-    ],
-    contract: null,
+    purpose: 'Exchange a university email + password for a Supabase Auth session (Student or Faculty).',
+    needs: [],
+    contract: { method: 'POST', path: '/api/auth/login', mapResponse: mapSession },
+  },
+  'auth.signUp': {
+    purpose: 'Create a Student or Faculty account. Admin accounts cannot be created here.',
+    needs: [],
+    contract: {
+      method: 'POST',
+      path: '/api/auth/signup',
+      mapRequest: (input) => {
+        const i = input as Record<string, unknown>
+        return { ...i, role: toBackendRole(i.role) }
+      },
+      mapResponse: mapSession,
+    },
+  },
+  'auth.refresh': {
+    purpose: 'Renew an expired access token with the stored refresh token.',
+    needs: [],
+    contract: { method: 'POST', path: '/api/auth/refresh', mapResponse: mapSession },
   },
   'auth.signOut': {
     purpose: 'Invalidate the current session.',
-    needs: ['Method and path, or confirmation that logout is client-side only (token discard)'],
-    contract: null,
+    needs: [],
+    contract: { method: 'POST', path: '/api/auth/logout' },
   },
   'auth.me': {
-    purpose: 'Return the signed-in user: id, full name, university email, role, optional avatar.',
-    needs: ['Method and path', 'Response JSON shape and the role values used (e.g. "student" | "faculty")'],
-    contract: null,
+    purpose: 'Return the signed-in user: id, full name, university email, role, department.',
+    needs: [],
+    contract: { method: 'GET', path: '/api/auth/me', mapResponse: mapUser },
   },
   'profile.update': {
-    purpose: 'Update editable profile fields of the signed-in user.',
-    needs: ['Method and path', 'Which fields are editable and their names', 'Response shape (updated user?)'],
-    contract: null,
+    purpose: 'Update editable profile fields (name, department) of the signed-in user.',
+    needs: [],
+    contract: { method: 'PATCH', path: '/api/auth/me', mapResponse: mapUser },
   },
   'bookings.list': {
     purpose: 'Upcoming bookings of the signed-in user (venue, date, time slot, status, details).',

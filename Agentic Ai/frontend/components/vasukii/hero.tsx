@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowUpRight, MapPin, Sparkles } from 'lucide-react'
+import { HeroGreeting, HeroRoleBadge } from './hero-greeting'
 
 const suggestions = ['Book a seminar hall for Friday', 'Is guest house room available?', 'Where can I park today?']
 
@@ -36,9 +37,11 @@ export function Hero() {
             <MapPin className="size-3" />
             JK Lakshmipat University · Jaipur
           </span>
+          <HeroRoleBadge />
         </div>
 
         <div className="max-w-xl">
+          <HeroGreeting />
           <h1
             id="hero-title"
             className="font-serif text-4xl leading-[1.05] tracking-tight text-balance text-white sm:text-5xl lg:text-[3.5rem]"
