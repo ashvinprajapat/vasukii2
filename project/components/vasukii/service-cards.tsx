@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import Link from 'next/link'
 import { ArrowRight, BedDouble, Building2, CarFront, Monitor, Presentation, type LucideIcon } from 'lucide-react'
 
 type Service = {
@@ -19,7 +20,7 @@ const services: Service[] = [
     image: '/images/classroom.png',
     alt: 'A faculty member teaching students seated at tiered wooden desks in a JKLU classroom',
     icon: Building2,
-    href: '#',
+    href: '/bookings/new?type=classroom',
   },
   {
     title: 'Lab Booking',
@@ -28,7 +29,7 @@ const services: Service[] = [
     image: '/images/lab.png',
     alt: 'Students coding at desktop workstations in a campus computer lab',
     icon: Monitor,
-    href: '#',
+    href: '/bookings/new?type=lab',
   },
   {
     title: 'Amphitheatre',
@@ -37,7 +38,7 @@ const services: Service[] = [
     image: '/images/amphitheatre.png',
     alt: 'Curved tiered seating facing a speaker at the podium in the campus amphitheatre',
     icon: Presentation,
-    href: '#',
+    href: '/bookings/new?type=amphitheatre',
   },
   {
     title: 'MDC Guest House',
@@ -46,7 +47,7 @@ const services: Service[] = [
     image: '/images/guest-house.png',
     alt: 'A bright guest house room with white bedding',
     icon: BedDouble,
-    href: '#',
+    href: '/guest-house',
   },
   {
     title: 'Smart Parking',
@@ -55,7 +56,7 @@ const services: Service[] = [
     image: '/images/parking.png',
     alt: 'A tree-lined campus parking area',
     icon: CarFront,
-    href: '#',
+    href: '/parking',
   },
 ]
 
@@ -75,7 +76,7 @@ export function ServiceCards() {
           const Icon = s.icon
           return (
             <li key={s.title} className={i === 0 ? 'sm:col-span-2 xl:col-span-1' : undefined}>
-              <a
+              <Link
                 href={s.href}
                 className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_2px_rgba(16,24,20,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_16px_40px_-20px_rgba(20,60,40,0.35)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
@@ -105,7 +106,7 @@ export function ServiceCards() {
                     <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
                   </span>
                 </div>
-              </a>
+              </Link>
             </li>
           )
         })}

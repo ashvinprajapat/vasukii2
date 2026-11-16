@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import Link from 'next/link'
 import { ArrowUpRight, MapPin, Sparkles } from 'lucide-react'
 
 const suggestions = ['Book a seminar hall for Friday', 'Is guest house room available?', 'Where can I park today?']
@@ -49,20 +50,20 @@ export function Hero() {
           </p>
 
           <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <a
-              href="#"
+            <Link
+              href="/assistant"
               className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-[oklch(0.38_0.08_158)] shadow-lg shadow-black/10 transition-all hover:bg-[oklch(0.97_0.01_150)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               <Sparkles className="size-4" />
               Ask Vasukii
               <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-            </a>
-            <a
-              href="#"
+            </Link>
+            <Link
+              href="/bookings/new"
               className="inline-flex h-12 items-center justify-center rounded-xl border border-white/25 bg-white/10 px-5 text-sm font-medium text-white backdrop-blur-md transition-colors hover:bg-white/20"
             >
               Browse venues
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -71,12 +72,12 @@ export function Hero() {
           <ul className="flex flex-wrap gap-2">
             {suggestions.map((s) => (
               <li key={s}>
-                <a
-                  href="#"
+                <Link
+                  href={`/assistant?q=${encodeURIComponent(s)}`}
                   className="inline-flex rounded-full border border-white/15 bg-black/15 px-3.5 py-1.5 text-xs text-white/90 backdrop-blur-md transition-colors hover:border-white/30 hover:bg-white/15"
                 >
                   {s}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>

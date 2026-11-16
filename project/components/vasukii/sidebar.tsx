@@ -4,6 +4,7 @@ import {
   BedDouble,
   Building2,
   CalendarCheck,
+  CalendarClock,
   CarFront,
   LayoutDashboard,
   PanelLeftClose,
@@ -12,31 +13,45 @@ import {
   Sparkles,
   UserRound,
   X,
+  type LucideIcon,
 } from 'lucide-react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { UniversityLogo, VasukiiWordmark } from './brand'
+import { ProfileMenu } from './profile-menu'
 
-const primaryNav = [
-  { label: 'Dashboard', icon: LayoutDashboard, href: '#', active: true },
-  { label: 'AI Assistant', icon: Sparkles, href: '#' },
-  { label: 'Classroom Booking', icon: Building2, href: '#' },
-  { label: 'MDC Guest House', icon: BedDouble, href: '#' },
-  { label: 'Parking', icon: CarFront, href: '#' },
-  { label: 'My Bookings', icon: CalendarCheck, href: '#' },
+type NavItem = { label: string; icon: LucideIcon; href: string; active?: boolean }
+
+const primaryNav: NavItem[] = [
+  { label: 'Dashboard', icon: LayoutDashboard, href: '/' },
+  { label: 'AI Assistant', icon: Sparkles, href: '/assistant' },
+  { label: 'Classroom Booking', icon: Building2, href: '/bookings/new' },
+  { label: 'MDC Guest House', icon: BedDouble, href: '/guest-house' },
+  { label: 'Parking', icon: CarFront, href: '/parking' },
+  { label: 'My Bookings', icon: CalendarCheck, href: '/bookings' },
+  { label: 'My Schedule', icon: CalendarClock, href: '/schedule' },
 ]
 
-const accountNav = [
-  { label: 'Profile', icon: UserRound, href: '#' },
-  { label: 'Settings', icon: Settings, href: '#' },
+const accountNav: NavItem[] = [
+  { label: 'Profile', icon: UserRound, href: '/profile' },
+  { label: 'Settings', icon: Settings, href: '/settings' },
 ]
 
-type NavItem = (typeof primaryNav)[number] & { active?: boolean }
+/** The nav item whose href is the longest match for the current path. */
+function activeHref(pathname: string) {
+  return [...primaryNav, ...accountNav]
+    .map((i) => i.href)
+    .filter((href) => (href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`)))
+    .sort((a, b) => b.length - a.length)[0]
+}
 
-function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
+function NavLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
   const Icon = item.icon
   return (
-    <a
+    <Link
       href={item.href}
+      onClick={onNavigate}
       aria-current={item.active ? 'page' : undefined}
       title={collapsed ? item.label : undefined}
       className={cn(
@@ -53,7 +68,7 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       )}
       <Icon className={cn('size-[18px] shrink-0', item.active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
       <span className={cn(collapsed && 'sr-only')}>{item.label}</span>
-    </a>
+    </Link>
   )
 }
 
@@ -68,8 +83,17 @@ export function Sidebar({
   mobileOpen: boolean
   onCloseMobile: () => void
 }) {
+  const current = activeHref(usePathname())
   const content = (isMobile: boolean) => {
     const isCollapsed = !isMobile && collapsed
+    const renderItem = (item: NavItem) => (
+      <NavLink
+        key={item.href}
+        item={{ ...item, active: item.href === current }}
+        collapsed={isCollapsed}
+        onNavigate={isMobile ? onCloseMobile : undefined}
+      />
+    )
     return (
       <div className="flex h-full flex-col">
         <div className={cn('flex h-16 items-center px-4', isCollapsed ? 'justify-center' : 'justify-between')}>
@@ -93,9 +117,7 @@ export function Sidebar({
                 Workspace
               </p>
             )}
-            {primaryNav.map((item) => (
-              <NavLink key={item.label} item={item} collapsed={isCollapsed} />
-            ))}
+            {primaryNav.map(renderItem)}
           </div>
           <div className="flex flex-col gap-1">
             {!isCollapsed && (
@@ -103,9 +125,7 @@ export function Sidebar({
                 Account
               </p>
             )}
-            {accountNav.map((item) => (
-              <NavLink key={item.label} item={item} collapsed={isCollapsed} />
-            ))}
+            {accountNav.map(renderItem)}
           </div>
         </nav>
 
@@ -115,6 +135,7 @@ export function Sidebar({
               <UniversityLogo />
             </div>
           )}
+          {!isCollapsed && <ProfileMenu variant="sidebar" />}
           {!isMobile && (
             <button
               type="button"
